@@ -16,6 +16,7 @@ bool InitializeWindowsSockets();
 int SendPacket(SOCKET *socket, char * message, int messageSize);
 int RecievePacket(SOCKET *socket, char * recvBuffer, int length);
 int SendMessage(char *queueName, void *message, int messageSize);
+int Select(SOCKET socket, int recvSend);
 SOCKET connectSocket;
 
 int __cdecl main(int argc, char **argv) 
@@ -184,12 +185,6 @@ int SendMessage(char *queueName, void *message, int messageSize)
 	queueName[strlen(queueName)-1] = '|';
 	int poslao = 0;
 	int msgSize = messageSize;
-	fd_set writefds;
-	FD_ZERO(&writefds);
-	FD_SET(connectSocket, &writefds);
-	timeval timeVal;
-	timeVal.tv_sec = 1;
-	timeVal.tv_usec = 0;
 	char *temp = (char*)malloc(100);
 	memset(temp, 0, 1);
 	strcat(temp, queueName);
@@ -198,7 +193,15 @@ int SendMessage(char *queueName, void *message, int messageSize)
 
 	do
 	{
+		fd_set writefds;
+		FD_ZERO(&writefds);
 		FD_SET(connectSocket, &writefds);
+
+		timeval timeVal;
+		timeVal.tv_sec = 1;
+		timeVal.tv_usec = 0;
+		FD_SET(connectSocket, &writefds);
+
 		int result = select(0, NULL, &writefds, NULL, &timeVal);
 		if (result > 0)
 		{
@@ -229,15 +232,16 @@ int SendPacket(SOCKET *socket, char * message, int messageSize)
 {
 	int poslao = 0;
 	int msgSize = messageSize;
-	fd_set writefds;
-	FD_ZERO(&writefds);
-	FD_SET(*socket, &writefds);
-	timeval timeVal;
-	timeVal.tv_sec = 1;
-	timeVal.tv_usec = 0;
-
 	do
 	{
+		fd_set writefds;
+		FD_ZERO(&writefds);
+		FD_SET(*socket, &writefds);
+
+		timeval timeVal;
+		timeVal.tv_sec = 1;
+		timeVal.tv_usec = 0;
+
 		FD_SET(*socket, &writefds);
 		int result = select(0, NULL, &writefds, NULL, &timeVal);
 		if (result > 0)
@@ -269,16 +273,16 @@ int RecievePacket(SOCKET *socket, char * recvBuffer, int length)
 	int primio = 0;
 	int len = length;
 
-	fd_set readfds;
-	FD_ZERO(&readfds);
-	FD_SET(*socket, &readfds);
-
-	timeval timeVal;
-	timeVal.tv_sec = 1;
-	timeVal.tv_usec = 0;
-
 	do
 	{
+		fd_set readfds;
+		FD_ZERO(&readfds);
+		FD_SET(*socket, &readfds);
+
+		timeval timeVal;
+		timeVal.tv_sec = 1;
+		timeVal.tv_usec = 0;
+
 		FD_SET(*socket, &readfds);
 		int result = select(0, &readfds, NULL, NULL, &timeVal);
 		if (result > 0)
@@ -317,4 +321,44 @@ int RecievePacket(SOCKET *socket, char * recvBuffer, int length)
 	} while (len > 0);
 
 	return 1;
+}
+
+
+int Select(SOCKET socket, int recvSend) { // 1 send, 0 recv
+	int iResult = 0;
+
+
+	FD_SET set;
+	timeval timeVal;
+
+	while (iResult == 0) {
+
+
+		FD_ZERO(&set);
+		// Add socket we will wait to read from
+		FD_SET(socket, &set);
+		// Set timeouts to zero since we want select to return
+		// instantaneously
+		timeVal.tv_sec = 0;
+		timeVal.tv_usec = 0;
+
+		if (recvSend == 1) {
+			iResult = select(0 /* ignored */, NULL, &set, NULL, &timeVal);		}		else if (recvSend == 0)
+		{
+			iResult = select(0 /* ignored */, &set, NULL, NULL, &timeVal);
+		}
+		//dodatti provere za error
+		if (iResult == 0) {
+			Sleep(50);
+			continue;
+		}
+		else if (iResult == SOCKET_ERROR) {
+			printf("Desila se greska prilikom poziva funkcije!\n");
+			break;
+		}
+
+	}
+
+
+	return iResult;
 }
